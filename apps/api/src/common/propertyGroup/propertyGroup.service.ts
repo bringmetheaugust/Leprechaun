@@ -1,8 +1,10 @@
 import { ClientGrpc } from '@nestjs/microservices';
 import { BadRequestException, Inject, Injectable, OnModuleInit } from '@nestjs/common';
-import { lastValueFrom } from 'rxjs';
+import { catchError, lastValueFrom, throwError } from 'rxjs';
 
-import { PROPERTY_GROUP_SERVICE_NAME, PropertyGroupPreview, PropertyGroupServiceClient } from '@gen/prop_group';
+import {
+    PROPERTY_GROUP_SERVICE_NAME, PropertyGroup, PropertyGroupCreate, PropertyGroupPreview, PropertyGroupServiceClient,
+} from '@gen/prop_group';
 import { PROP_GROUP_PACKAGE } from './propertyGroup.constants';
 
 @Injectable()
@@ -35,17 +37,13 @@ export default class PropertyGroupService implements OnModuleInit {
     //     });
     // }
 
-    // public async createGroup(newGroup: PropertyGroupCreateDTO): Promise<PropertyGroupI> {
-    //     try {
-    //         const { id } = await this.propertyGroupRepo.save(newGroup);
-
-    //         return this.propertyGroupRepo.findOneOrFail({
-    //             where: { id }, relations: { properties: true },
-    //         });
-    //     } catch (err) {
-    //         throw new BadRequestException(err);
-    //     }
-    // }
+    public async createGroup(newGroup: PropertyGroupCreate): Promise<PropertyGroup> {
+        return lastValueFrom(
+            this.propGroupService.createGroup(newGroup).pipe(
+                catchError(({ details }) => throwError(() => new BadRequestException(details)))
+            )
+        );
+    }
 
     // async updateGroup(id: PropertyGroupI['id'], updates: PropertyGroupUpdateDTO): Promise<UpdateResult> {
     //     return await this.propertyGroupRepo.update({ id }, updates);

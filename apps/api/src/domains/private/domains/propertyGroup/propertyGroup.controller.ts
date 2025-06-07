@@ -2,15 +2,15 @@ import {
     Body, Controller, Delete, Get, Param, Patch, Post, UseGuards, UseInterceptors, ValidationPipe,
 } from '@nestjs/common';
 import { ApiBadRequestResponse, ApiNotFoundResponse, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { DeleteResult, UpdateResult } from 'typeorm';
+// import { DeleteResult, UpdateResult } from 'typeorm';
 
 // import { PropertyGroupCreateDTO, PropertyGroupUpdateDTO } from './propertyGroup.dto';
 // import { PropertyGroupPreviewI } from './propertyGroup.interface';
 import { AuthJWTAccessGuard } from '@guards/auth.guard';
 import { UserRole } from '@gen/user';
 import { PropertyGroup, PropertyGroupPreview } from '@gen/prop_group';
-import AffectedResultInterceptor from '@interceptors/AffectedResultInterceptorr';
-import { PropertyGroupSchema } from './propertyGroup.schema';
+// import AffectedResultInterceptor from '@interceptors/AffectedResultInterceptorr';
+import { PropertyGroupCreateSchema, PropertyGroupSchema } from './propertyGroup.schema';
 import { UserRoleGuard } from '@common/user/user.guard';
 import PropertyGroupService from '@common/propertyGroup/propertyGroup.service';
 import { UserRoleDecorator } from '@common/user/user.decorator';
@@ -21,15 +21,13 @@ import { UserRoleDecorator } from '@common/user/user.decorator';
 export default class PropertyGroupPrivateController {
     constructor(private readonly propertyGroupService: PropertyGroupService) { }
 
-    // @Post()
-    // @UserRoleDecorator(UserRole.ADMIN)
-    // @ApiOperation({ summary: 'add new property group' })
-    // @ApiBadRequestResponse({ description: 'some of filed is already exists' })
-    // private createGroup(
-    //     @Body(new ValidationPipe({ transform: true })) group: PropertyGroupCreateDTO,
-    // ): Promise<PropertyGroup> {
-    //     return this.propertyGroupService.createGroup(group);
-    // }
+    @Post()
+    @UserRoleDecorator(UserRole.ADMIN)
+    @ApiOperation({ summary: 'add new property group' })
+    @ApiBadRequestResponse({ description: 'some of filed is already exists' })
+    private createGroup(@Body() group: PropertyGroupCreateSchema): Promise<PropertyGroup> {
+        return this.propertyGroupService.createGroup(group);
+    }
 
     // @Patch(':groupID')
     // @UserRoleDecorator(UserRole.ADMIN)

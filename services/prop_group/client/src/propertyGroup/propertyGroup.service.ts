@@ -1,54 +1,59 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
-import { DeleteResult, Repository, UpdateResult } from 'typeorm';
+import { Injectable } from '@nestjs/common';
+import { Repository } from 'typeorm';
 import { InjectRepository } from '@nestjs/typeorm';
+import { catchError, firstValueFrom, throwError } from 'rxjs';
+import { RpcException } from '@nestjs/microservices';
+import { status } from '@grpc/grpc-js';
 
 import { PropertyGroupEntity } from './propertyGroup.entity';
-import { PropertyGroup } from 'gen/ts/prop_group';
+import { PropertyGroup, PropertyGroupCreate } from 'gen/ts/prop_group';
+import TransService from '@trans/trans.service';
+import { Trans } from 'gen/ts/trans';
 
 @Injectable()
 export default class PropertyGroupService {
     constructor(
         @InjectRepository(PropertyGroupEntity) private readonly propertyGroupRepo: Repository<PropertyGroupEntity>,
+        private readonly transService: TransService,
     ) { }
 
-    // public async getGroup(id: PropertyGroup['id']): Promise<PropertyGroup | null> {
-    //     return await this.propertyGroupRepo.findOne({
-    //         where: { id },
-    //         relations: { categories: true },
-    //         order: { properties: { created_at: 'DESC' } },
-    //     });
-    // }
-
     public async getGroupList(isPreview: boolean, isPublic?: boolean): Promise<PropertyGroup[]> {
-        return await this.propertyGroupRepo.find({
+        const propGroups = await this.propertyGroupRepo.find({
             order: { createdAt: 'DESC' },
             relations: { properties: !isPreview },
         });
+
+        if (!propGroups.length) return [];
+
+        const { items } = await firstValueFrom(
+            this.transService.getTransList({
+                ids: propGroups.map(p => p.title)
+            })
+        );
+
+        const translationMap = new Map(items.map(t => [t.id, t]));
+
+        return propGroups.map(propGroup => ({
+            ...propGroup,
+            title: translationMap.get(propGroup.title) as Trans,
+        }));
     }
 
-    // public async getGroupListByCategoryID(id: CategoryI['id']): Promise<PropertyGroupPreviewI[]> {
-    //     return await this.propertyGroupRepo.find({
-    //         where: { categories: { id } },
-    //     });
-    // }
+    public async createGroup(newGroup: PropertyGroupCreate): Promise<PropertyGroup> {
+        try {
+            const { id, ...title } = await firstValueFrom(
+                this.transService.createTrans(newGroup.title).pipe(
+                    catchError(err => throwError(() => new RpcException(err)))
+                )
+            );
 
-    // public async createGroup(newGroup: PropertyGroupCreateDTO): Promise<PropertyGroupI> {
-    //     try {
-    //         const { id } = await this.propertyGroupRepo.save(newGroup);
+            const group = await this.propertyGroupRepo.save({ ...newGroup, title: id });
 
-    //         return this.propertyGroupRepo.findOneOrFail({
-    //             where: { id }, relations: { properties: true },
-    //         });
-    //     } catch (err) {
-    //         throw new BadRequestException(err);
-    //     }
-    // }
+            return { ...group, title };
+        } catch (err: any) {
+            if (err.code === '23505') throw new RpcException({ code: status.UNAVAILABLE, message: err.detail });
 
-    // async updateGroup(id: PropertyGroupI['id'], updates: PropertyGroupUpdateDTO): Promise<UpdateResult> {
-    //     return await this.propertyGroupRepo.update({ id }, updates);
-    // }
-
-    // public async deleteGroup(groupId: number): Promise<DeleteResult> {
-    //     return await this.propertyGroupRepo.delete({ id: groupId });
-    // }
+            throw new RpcException({ code: err.code, message: err.message });
+        }
+    }
 }
